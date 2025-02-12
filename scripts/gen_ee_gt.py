@@ -1,3 +1,55 @@
+'''
+Below is an explanation of the code and its functions:
+
+load_predictions(pred_file)
+
+Opens the specified JSON file containing predictions.
+Times the file loading process and prints how long the loading took.
+Returns the parsed predictions.
+load_gt(gt_file)
+
+Opens a ground truth (GT) file where each line is a JSON string.
+Parses each line and creates a dictionary mapping each question’s ID to its label.
+The labels in the GT file are expected to be organized as key–value pairs, where keys are answer strings.
+gen_pred(predictions, gt_data)
+
+Prepares three lists (one for each prediction “layer”) to store:
+The predicted label (layer_pred)
+The associated probability (layer_prob)
+The entropy (layer_ent)
+For every prediction in each layer:
+Extracts the question id, predicted index, answer string, and optionally logits.
+Finds the true label by looking up the answer in the ground truth dictionary.
+If logits exist, computes the probability (using a helper function calc_prob) and the entropy (using calc_entropy).
+Returns the three lists – each representing the predictions, probabilities, and entropies per layer.
+analyze_pred(pred_local, gt)
+
+Uses gen_pred to obtain the per-layer predictions.
+For every question from the GT:
+Collects the predicted labels across layers.
+Determines the “stop layer” as the first layer that gives a nonzero prediction (or the final layer if none are nonzero). This simulates an early-exit strategy.
+Constructs a prediction tensor and a mapping (pred_dict) from each question id to its exit layer (adjusted to be 1-indexed).
+Computes:
+The average cost, using a predefined tensor of layer costs.
+An overall accuracy based on the most confident answer extracted from the modified prediction tensor.
+Per-layer exit accuracies.
+Outputs diagnostic print statements for a subset of predictions/tensors, cost, speedup, and accuracy.
+Returns the dictionary of exit layers and the modified tensor of predictions.
+save_pos_gt(gt_file, gt_pos, out_file='.ee.jsonl')
+
+Reads the original ground truth file line by line.
+For each GT line, uses the provided gt_pos dictionary (which maps question IDs to a predicted exit layer) to insert a new key (ee_layer).
+Writes each modified GT line as a JSON string into a new output file.
+Each function is part of a pipeline that:
+
+Loads prediction and ground truth data.
+Processes predictions from multiple layers.
+Decides at which layer to exit (simulate an early-exit for efficiency).
+Computes metrics such as cost and speedup.
+Saves the updated GT with the exit layer information.
+This modular approach not only isolates different functionalities (loading, processing, analyzing, and saving) but also makes it easier to debug and extend specific parts of the workflow later on.
+
+'''
 import torch
 import numpy as np
 import json
@@ -12,7 +64,7 @@ def load_predictions(pred_file):
     e = time.time()
     print(f'loading took {e - s}')
     return preds_local_val
-
+ 
 
 def load_gt(gt_file):
     # 'data/vqa/vqa2-local-val.jsonl'
@@ -42,6 +94,40 @@ def gen_pred(predictions, gt_data):
 
 
 def analyze_pred(pred_local, gt):
+    """
+    Analyze predictions generated from multiple layers against ground truth and calculate cost,
+    speedup, and accuracy metrics.
+
+    Parameters:
+        pred_local (list): A list of predictions from each layer, where each element corresponds
+                           to the prediction output of one layer.
+        gt (dict): A dictionary representing the ground truth, where keys are question identifiers
+                   and values are the corresponding correct answers.
+
+    Returns:
+        tuple: A tuple (pred_dict, new_label) containing:
+            - pred_dict (dict): A dictionary mapping each question id to the 1-indexed layer number
+                                 at which the prediction was determined (i.e., the layer at which the 
+                                 first nonzero prediction appears, or the last layer if none are nonzero).
+            - new_label (torch.Tensor): A tensor representing modified predictions; it is formed by 
+                                        concatenating a zero column to the original prediction tensor 
+                                        and is used in gathering the most confident answers across layers.
+
+    Functionality:
+        - Generates a new set of predictions using the gen_pred function.
+        - For each question in the ground truth:
+              - Extracts predictions across all layers.
+              - Determines the stop layer as the first layer with a nonzero prediction (or the last layer
+                if none exist), and adjusts the index to be 1-indexed.
+        - Constructs a tensor of prediction indices and prints diagnostic statistics including:
+              - A sample of ground truth final labels per question across layers.
+              - The count and proportion of predictions per layer.
+              - Computation of the average cost based on predetermined layer costs.
+              - Computation of overall accuracy based on the most confident predictions.
+              - Per-layer exit accuracies.
+        - Finally, returns the dictionary of selected prediction layers (pred_dict) and the tensor
+          of modified predictions (new_label) for further evaluations.
+    """
     layers = len(pred_local)
     layer_pred, _, _ = gen_pred(pred_local, gt)
 
