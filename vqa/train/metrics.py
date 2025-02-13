@@ -4,9 +4,10 @@ from typing import Optional
 
 import pytorch_lightning as pl
 import torch
+import torchmetrics as pl_metrics
 
 
-class VqaAccuracy(pl.metrics.Accuracy):
+class VqaAccuracy(pl_metrics.Accuracy):
     def __init__(self,
                  threshold: float = 0.5,
                  top_k: Optional[int] = None,

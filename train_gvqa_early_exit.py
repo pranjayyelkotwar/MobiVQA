@@ -27,7 +27,7 @@ from vqa.train.io import CheckpointEveryNSteps
 from vqa.train.vqa import VqaCrossEarlyExitModule
 from vqa.train.vqa import VqaEarlyExitModule
 
-@hydra.main(config_path="conf", config_name="early_exit")
+@hydra.main(config_path="conf", config_name="early_exit" , version_base="1.2")
 def my_app(cfg) -> None:
     # Log the configuration settings
     logger.info("Loaded configuration:")

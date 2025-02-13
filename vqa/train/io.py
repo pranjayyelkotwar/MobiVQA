@@ -4,7 +4,7 @@ import os
 from collections import deque
 
 import pytorch_lightning as pl
-from pytorch_lightning.utilities.cloud_io import get_filesystem
+from lightning_fabric.utilities.cloud_io import get_filesystem
 
 from vqa import logger
 
